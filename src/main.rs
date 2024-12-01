@@ -1,12 +1,4 @@
 
-//     // run it
-//     let listener = tokio::net::TcpListener::bind("[::]:8080")
-//         .await
-//         .unwrap();
-//     println!("listening on {}", listener.local_addr().unwrap());
-//     axum::serve(listener, app).await.unwrap();
-// }
-
 use axum::{
     extract::Query,
     response::IntoResponse,
