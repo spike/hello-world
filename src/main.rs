@@ -1,51 +1,71 @@
+//! Run with
+//!
+//! ```not_rust
+//! cargo run -p example-form
+//! ```
 
-use axum::{
-    extract::Query,
-    response::IntoResponse,
-    routing::get,
-    Json, Router,
-};
-use hyper::server::conn::AddrIncoming;
-use hyper::server::Server;
-use serde::{Deserialize, Serialize};
-use tokio::net::TcpListener;
+use axum::{extract::Form, response::Html, routing::get, Router};
+use serde::Deserialize;
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+use std::net::SocketAddr;
 
 #[tokio::main]
 async fn main() {
-    // Build the application with a route
-    let app = Router::new().route("/api/greet", get(greet_handler));
+    tracing_subscriber::registry()
+        .with(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| format!("{}=debug", env!("CARGO_CRATE_NAME")).into()),
+        )
+        .with(tracing_subscriber::fmt::layer())
+        .init();
 
-    // Bind to a generic address: [::]:8080 (IPv4 and IPv6)
-    let listener = TcpListener::bind("[::]:8080")
-        .await
-        .expect("Failed to bind to address");
-    let incoming = AddrIncoming::from_listener(listener).expect("Failed to create AddrIncoming");
+    // Build our application with some routes
+    let app = Router::new().route("/", get(show_form).post(accept_form));
 
-    println!("Server running at http://[::]:8080");
+    // Specify the address to bind to
+    let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
+    tracing::debug!("listening on {}", addr);
 
-    // Start the server
-    Server::builder(incoming)
+    // Run the server
+    axum::Server::bind(&addr)
         .serve(app.into_make_service())
         .await
         .unwrap();
 }
 
-// Query parameters structure
-#[derive(Deserialize)]
-struct GreetQuery {
-    name: Option<String>,
+async fn show_form() -> Html<&'static str> {
+    Html(
+        r#"
+        <!doctype html>
+        <html>
+            <head></head>
+            <body>
+                <form action="/" method="post">
+                    <label for="name">
+                        Enter your name:
+                        <input type="text" name="name">
+                    </label>
+
+                    <label>
+                        Enter your email:
+                        <input type="text" name="email">
+                    </label>
+
+                    <input type="submit" value="Subscribe!">
+                </form>
+            </body>
+        </html>
+        "#,
+    )
 }
 
-// Response structure
-#[derive(Serialize)]
-struct GreetResponse {
-    message: String,
+#[derive(Deserialize, Debug)]
+#[allow(dead_code)]
+struct Input {
+    name: String,
+    email: String,
 }
 
-// Handler for the /api/greet route
-async fn greet_handler(Query(params): Query<GreetQuery>) -> impl IntoResponse {
-    let name = params.name.unwrap_or_else(|| "World".to_string());
-    let message = format!("Hello, {}!", name);
-
-    Json(GreetResponse { message })
+async fn accept_form(Form(input): Form<Input>) {
+    dbg!(&input);
 }
